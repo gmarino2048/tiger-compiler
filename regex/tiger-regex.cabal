@@ -56,7 +56,8 @@ library
     import:           warnings
 
     -- Modules exported by the library.
-    exposed-modules:  Syntax
+    exposed-modules:  Parse,
+                      Syntax
 
     -- Modules included in this library but not exported.
     -- other-modules:

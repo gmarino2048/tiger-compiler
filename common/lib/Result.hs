@@ -2,7 +2,7 @@
 
 module Result (Result(..)) where
 
-data Result e v = Error e | Value v
+data Result e v = Error e | Value v deriving Show
 
 instance Functor (Result e) where
     fmap:: (a -> b) -> Result e a -> Result e b
