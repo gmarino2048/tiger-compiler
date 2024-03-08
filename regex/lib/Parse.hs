@@ -13,6 +13,7 @@ type Parser = Char -> ParseStack -> Result ErrorValue ParseStack
 
 data ParseFrame = ParseFrame {
                     parser :: Parser,
+                    accumulator :: String,
                     expression :: Syntax.Expression }
 
 type ParseStack = [ParseFrame]
@@ -45,7 +46,7 @@ parseRangedQuantifier rangeValue = collectedResults >>= makeQuantifier where
         (Just a, Nothing) -> initQuantifier rangeValue $ Syntax.MinimumQuantifier a
         (Nothing, Just b) -> initQuantifier rangeValue $ Syntax.MaximumQuantifier b
         _                 -> Error "Ranged Quantifier requires at least one value"
-    makeQuantifier _      = Error "Ranged Quantifier requires two elements"
+    makeQuantifier _      = Error "Ranged Quantifier requires exactly two elements"
 
     collectedResults :: Result ErrorValue [Maybe Integer]
     collectedResults = collect $ map parseIntOrEmpty (splitOn rangeValue ',')
