@@ -23,10 +23,15 @@ data QuantifierParseState = QuantifierParseState {
                                 quantifier :: Maybe Syntax.Quantifier }
                                 deriving Show
 
+
+initQuantifier :: String -> Syntax.Quantifier -> Result e QuantifierParseState
+initQuantifier s q = Value $ QuantifierParseState s $ Just q
+
+
 parseQuantifier :: Char -> String -> Result ErrorValue QuantifierParseState
-parseQuantifier '?' _     = Value $ QuantifierParseState "?" $ Just Syntax.OptionalQuantifier
-parseQuantifier '*' _     = Value $ QuantifierParseState "*" $ Just Syntax.AnyCountQuantifier
-parseQuantifier '+' _     = Value $ QuantifierParseState "+" $ Just Syntax.AtLeastOneQuantifier
+parseQuantifier '?' _     = initQuantifier "?" Syntax.OptionalQuantifier
+parseQuantifier '*' _     = initQuantifier "*" Syntax.AnyCountQuantifier
+parseQuantifier '+' _     = initQuantifier "+" Syntax.AtLeastOneQuantifier
 parseQuantifier '}' str   = parseRangedQuantifier str
 parseQuantifier other str = Value $ QuantifierParseState (other : str) Nothing
 
@@ -36,14 +41,11 @@ parseRangedQuantifier rangeValue = collectedResults >>= makeQuantifier where
 
     makeQuantifier :: [Maybe Integer] -> Result ErrorValue QuantifierParseState
     makeQuantifier [x, y] = case (x, y) of
-        (Just a, Just b)  -> initQuantifier $ Syntax.RangeQuantifier a b
-        (Just a, Nothing) -> initQuantifier $ Syntax.MinimumQuantifier a
-        (Nothing, Just b) -> initQuantifier $ Syntax.MaximumQuantifier b
+        (Just a, Just b)  -> initQuantifier rangeValue $ Syntax.RangeQuantifier a b
+        (Just a, Nothing) -> initQuantifier rangeValue $ Syntax.MinimumQuantifier a
+        (Nothing, Just b) -> initQuantifier rangeValue $ Syntax.MaximumQuantifier b
         _                 -> Error "Ranged Quantifier requires at least one value"
     makeQuantifier _      = Error "Ranged Quantifier requires two elements"
-
-    initQuantifier :: Syntax.Quantifier -> Result e QuantifierParseState
-    initQuantifier q = Value $ QuantifierParseState rangeValue $ Just q
 
     collectedResults :: Result ErrorValue [Maybe Integer]
     collectedResults = collect $ map parseIntOrEmpty (splitOn rangeValue ',')
