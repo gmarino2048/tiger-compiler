@@ -1,6 +1,17 @@
 module ListOps (
+    collect,
     splitOn
 ) where
+
+collect :: Monad m => [m v] -> m [v]
+collect vals = reverse <$> foldl collectValues (pure []) vals where
+
+    collectValues :: Monad m => m [v] -> m v -> m [v]
+    collectValues xs v = xs >>= (`collectAppend` v)
+
+    collectAppend :: Monad m => [v] -> m v -> m [v]
+    collectAppend list = fmap (: list)
+
 
 splitOn :: (Eq a) => [a] -> a -> [[a]]
 splitOn [] _ = []
