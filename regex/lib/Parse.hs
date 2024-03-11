@@ -11,40 +11,59 @@ type ErrorValue = String
 
 type Parser = Char -> ParseStack -> Result ErrorValue ParseStack
 
+data Parsable = Expression Syntax.Expression | Quantifier Syntax.Quantifier deriving Show
+
 data ParseFrame = ParseFrame {
                     parser :: Parser,
                     accumulator :: String,
-                    expression :: Syntax.Expression }
+                    value :: Maybe Parsable }
 
 type ParseStack = [ParseFrame]
 
 
-data QuantifierParseState = QuantifierParseState {
-                                sourceText :: String,
-                                quantifier :: Maybe Syntax.Quantifier }
-                                deriving Show
+newParseFrame :: Parser -> ParseFrame
+newParseFrame p = ParseFrame p "" Nothing
 
+finishParse :: ParseStack -> Result ErrorValue ParseStack
+finishParse _ = Error "Not Implemented"
 
-initQuantifier :: String -> Syntax.Quantifier -> Result e QuantifierParseState
-initQuantifier s q = Value $ QuantifierParseState s $ Just q
+parseQuantifier :: Parser
+parseQuantifier _ [] = Error "Parsing a Quantifier Requires a Parse Frame"
+parseQuantifier c (x:xs)
+    | isSingleQuantifier c = parseSingleQuantifier c >>= finishQuantifierParse [c]
+    | isEndOfRangedQuantifier c = let rValue = reverse $ accumulator x in
+        parseRangedQuantifier rValue >>= finishQuantifierParse rValue
+    | otherwise = Value $ (x { accumulator = c : accumulator x}) : xs where
 
+    quantifierChars :: [Char]
+    quantifierChars = ['?', '*', '+']
 
-parseQuantifier :: Char -> String -> Result ErrorValue QuantifierParseState
-parseQuantifier '?' _     = initQuantifier "?" Syntax.OptionalQuantifier
-parseQuantifier '*' _     = initQuantifier "*" Syntax.AnyCountQuantifier
-parseQuantifier '+' _     = initQuantifier "+" Syntax.AtLeastOneQuantifier
-parseQuantifier '}' str   = parseRangedQuantifier str
-parseQuantifier other str = Value $ QuantifierParseState (other : str) Nothing
+    isSingleQuantifier :: Char -> Bool
+    isSingleQuantifier cx = cx `elem` quantifierChars
 
+    isEndOfRangedQuantifier :: Char -> Bool
+    isEndOfRangedQuantifier = (==) '}'
 
-parseRangedQuantifier :: String -> Result ErrorValue QuantifierParseState
+    updateQuantifier :: ParseFrame -> String -> Syntax.Quantifier -> ParseFrame
+    updateQuantifier frame acc quan = frame { accumulator = acc, value = Just $ Quantifier quan }
+
+    finishQuantifierParse :: String -> Syntax.Quantifier -> Result ErrorValue ParseStack
+    finishQuantifierParse str = finishParse . (:xs) . updateQuantifier x str
+
+parseSingleQuantifier :: Char -> Result ErrorValue Syntax.Quantifier
+parseSingleQuantifier '?' = Value Syntax.OptionalQuantifier
+parseSingleQuantifier '*' = Value Syntax.AnyCountQuantifier
+parseSingleQuantifier '+' = Value Syntax.AtLeastOneQuantifier
+parseSingleQuantifier cx  = Error $ "Invalid Single Quantifier: '" ++ [cx] ++ "'"
+
+parseRangedQuantifier :: String -> Result ErrorValue Syntax.Quantifier
 parseRangedQuantifier rangeValue = collectedResults >>= makeQuantifier where
 
-    makeQuantifier :: [Maybe Integer] -> Result ErrorValue QuantifierParseState
+    makeQuantifier :: [Maybe Integer] -> Result ErrorValue Syntax.Quantifier
     makeQuantifier [x, y] = case (x, y) of
-        (Just a, Just b)  -> initQuantifier rangeValue $ Syntax.RangeQuantifier a b
-        (Just a, Nothing) -> initQuantifier rangeValue $ Syntax.MinimumQuantifier a
-        (Nothing, Just b) -> initQuantifier rangeValue $ Syntax.MaximumQuantifier b
+        (Just a, Just b)  -> Value $ Syntax.RangeQuantifier a b
+        (Just a, Nothing) -> Value $ Syntax.MinimumQuantifier a
+        (Nothing, Just b) -> Value $ Syntax.MaximumQuantifier b
         _                 -> Error "Ranged Quantifier requires at least one value"
     makeQuantifier _      = Error "Ranged Quantifier requires exactly two elements"
 
