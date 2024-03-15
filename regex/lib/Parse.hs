@@ -24,8 +24,12 @@ type ParseStack = [ParseFrame]
 newParseFrame :: Parser -> ParseFrame
 newParseFrame p = ParseFrame p "" Nothing
 
-finishParse :: ParseStack -> Result ErrorValue ParseStack
-finishParse _ = Error "Not Implemented"
+updateParseFrame :: ParseFrame -> String -> Parsable -> ParseFrame
+updateParseFrame frame acc parsed = frame { accumulator = acc, value = Just parsed }
+
+popParseFrame :: ParseStack -> Result ErrorValue ParseStack
+popParseFrame _ = Error "Not Implemented"
+
 
 parseQuantifier :: Parser
 parseQuantifier _ [] = Error "Parsing a Quantifier Requires a Parse Frame"
@@ -33,7 +37,7 @@ parseQuantifier c (x:xs)
     | isSingleQuantifier c = parseSingleQuantifier c >>= finishQuantifierParse [c]
     | isEndOfRangedQuantifier c = let rValue = reverse $ accumulator x in
         parseRangedQuantifier rValue >>= finishQuantifierParse rValue
-    | otherwise = Value $ (x { accumulator = c : accumulator x}) : xs where
+    | otherwise = Value $ (x { accumulator = c : accumulator x }) : xs where
 
     quantifierChars :: [Char]
     quantifierChars = ['?', '*', '+']
@@ -44,11 +48,8 @@ parseQuantifier c (x:xs)
     isEndOfRangedQuantifier :: Char -> Bool
     isEndOfRangedQuantifier = (==) '}'
 
-    updateQuantifier :: ParseFrame -> String -> Syntax.Quantifier -> ParseFrame
-    updateQuantifier frame acc quan = frame { accumulator = acc, value = Just $ Quantifier quan }
-
     finishQuantifierParse :: String -> Syntax.Quantifier -> Result ErrorValue ParseStack
-    finishQuantifierParse str = finishParse . (:xs) . updateQuantifier x str
+    finishQuantifierParse str = popParseFrame . (:xs) . updateParseFrame x str . Quantifier
 
 parseSingleQuantifier :: Char -> Result ErrorValue Syntax.Quantifier
 parseSingleQuantifier '?' = Value Syntax.OptionalQuantifier
@@ -76,3 +77,20 @@ parseRangedQuantifier rangeValue = collectedResults >>= makeQuantifier where
         Just x  -> Value $ Just x
         Nothing -> Error $ "Failed to parse integer from \"" ++ xs ++ "\""
 
+
+parseMatchGroup :: Parser
+parseMatchGroup _ [] = Error "Parsing a match group requires a Parse Frame"
+parseMatchGroup c (x:xs)
+    | isEndOfMatchGroup c = let rValue = reverse $ accumulator x in
+        parseAccumulatedMatchGroup rValue >>= finishMatchGroupParse rValue
+    | otherwise = Value $ (x { accumulator = c : accumulator x }) : xs where
+
+    isEndOfMatchGroup :: Char -> Bool
+    isEndOfMatchGroup = (==) ']'
+
+    finishMatchGroupParse :: String -> Syntax.Expression -> Result ErrorValue ParseStack
+    finishMatchGroupParse str = popParseFrame . (:xs) . updateParseFrame x str . Expression
+
+
+parseAccumulatedMatchGroup :: String -> Result ErrorValue Syntax.Expression
+parseAccumulatedMatchGroup _ = Error "Not Implemented"
