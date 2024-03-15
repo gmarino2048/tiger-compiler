@@ -4,6 +4,7 @@ import Result (Result(..))
 import ListOps (collect, splitOn)
 import qualified Syntax
 
+import Control.Monad (join)
 import Text.Read (readMaybe)
 
 type ErrorValue = String
@@ -21,6 +22,10 @@ data ParseFrame = ParseFrame {
 type ParseStack = [ParseFrame]
 
 
+--
+-- This section contains support methods for the Parsers
+--
+
 newParseFrame :: Parser -> ParseFrame
 newParseFrame p = ParseFrame p "" Nothing
 
@@ -28,8 +33,33 @@ updateParseFrame :: ParseFrame -> String -> Parsable -> ParseFrame
 updateParseFrame frame acc parsed = frame { accumulator = acc, value = Just parsed }
 
 popParseFrame :: ParseStack -> Result ErrorValue ParseStack
-popParseFrame _ = Error "Not Implemented"
+popParseFrame [] = Error "Parse Stack is empty, cannot pop frame from empty stack"
+popParseFrame [_] = Error "Mismatched escape closure, cannot return from final context"
+popParseFrame (x:y:ys) = let updatedExpression = join (modifyExpression <$> valueFrom x <*> expressionFrom y) in
+    (:ys) . modifyFrame y <$> updatedExpression where
 
+    valueFrom :: ParseFrame -> Result ErrorValue Parsable
+    valueFrom frame = case value frame of
+        Just v -> Value v
+        _      -> Error "Parse Frame does not have a value"
+
+    expressionFrom :: ParseFrame -> Result ErrorValue Syntax.Expression
+    expressionFrom frame = valueFrom frame >>= getExpression where
+
+        getExpression :: Parsable -> Result ErrorValue Syntax.Expression
+        getExpression (Expression e) = Value e
+        getExpression _ = Error "Expected expression from parse frame"
+
+    modifyFrame :: ParseFrame -> Syntax.Expression -> ParseFrame
+    modifyFrame frame expr = frame { value = Just $ Expression expr }
+
+    modifyExpression :: Parsable -> Syntax.Expression -> Result ErrorValue Syntax.Expression
+    modifyExpression _ _ = Error "Not Implemented"
+
+
+--
+-- This section contains the quantifier parser
+--
 
 parseQuantifier :: Parser
 parseQuantifier _ [] = Error "Parsing a Quantifier Requires a Parse Frame"
@@ -77,6 +107,10 @@ parseRangedQuantifier rangeValue = collectedResults >>= makeQuantifier where
         Just x  -> Value $ Just x
         Nothing -> Error $ "Failed to parse integer from \"" ++ xs ++ "\""
 
+
+--
+-- This section contains the MatchGroup parser
+--
 
 parseMatchGroup :: Parser
 parseMatchGroup _ [] = Error "Parsing a match group requires a Parse Frame"
