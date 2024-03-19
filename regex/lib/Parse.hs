@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Parse where
 
 import Result (Result(..))
@@ -30,13 +32,16 @@ newParseFrame :: Parser -> ParseFrame
 newParseFrame p = ParseFrame p "" Nothing
 
 updateParseFrame :: ParseFrame -> String -> Parsable -> ParseFrame
-updateParseFrame frame acc parsed = frame { accumulator = acc, value = Just parsed }
+updateParseFrame frame source parsed = frame { accumulator = source, value = Just parsed }
 
 popParseFrame :: ParseStack -> Result ErrorValue ParseStack
 popParseFrame [] = Error "Parse Stack is empty, cannot pop frame from empty stack"
 popParseFrame [_] = Error "Mismatched escape closure, cannot return from final context"
 popParseFrame (x:y:ys) = let updatedExpression = join (modifyExpression <$> valueFrom x <*> expressionFrom y) in
     (:ys) . modifyFrame y <$> updatedExpression where
+
+    updateFrameSource :: String -> String
+    updateFrameSource str = str ++ accumulator x
 
     valueFrom :: ParseFrame -> Result ErrorValue Parsable
     valueFrom frame = case value frame of
@@ -54,7 +59,27 @@ popParseFrame (x:y:ys) = let updatedExpression = join (modifyExpression <$> valu
     modifyFrame frame expr = frame { value = Just $ Expression expr }
 
     modifyExpression :: Parsable -> Syntax.Expression -> Result ErrorValue Syntax.Expression
-    modifyExpression _ _ = Error "Not Implemented"
+    modifyExpression parsed expr = case (parsed, expr) of
+
+        (Quantifier q, Syntax.SubExpression{..}) -> Value newSubExpression where
+
+            newSubExpression :: Syntax.Expression
+            newSubExpression = Syntax.SubExpression modifiedExpressionList instanceNumber quantifier $ updateFrameSource sourceText
+
+            modifiedExpressionList :: [Syntax.Expression]
+            modifiedExpressionList = (head expressionList) { Syntax.quantifier = q } : tail expressionList
+
+        (Quantifier q, Syntax.MatchExpression{..}) -> Value newMatchExpression where
+
+            newMatchExpression :: Syntax.Expression
+            newMatchExpression = Syntax.MatchExpression match q $ updateFrameSource sourceText
+
+        (Expression e, Syntax.SubExpression{..}) -> Value newSubExpression where
+
+            newSubExpression :: Syntax.Expression
+            newSubExpression = Syntax.SubExpression (e:expressionList) instanceNumber quantifier $ updateFrameSource sourceText
+
+        _ -> Error "Invalid combination of parsed value and parent expression"
 
 
 --
