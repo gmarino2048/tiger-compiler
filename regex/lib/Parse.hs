@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Parse where
 
@@ -21,7 +23,27 @@ data ParseFrame = ParseFrame {
                     accumulator :: String,
                     value :: Maybe Parsable }
 
+instance Show ParseFrame where
+    show :: ParseFrame -> String
+    show pf = "{ " ++ showAcc ++ ", " ++ showValue ++ " }" where
+
+        showAcc :: String
+        showAcc = "Accumulator: \"" ++ accumulator pf ++ "\""
+
+        showValue :: String
+        showValue = "Parsed: " ++ show (value pf)
+
 type ParseStack = [ParseFrame]
+
+--
+-- This section contains the main parsing method
+--
+
+parse :: String -> Result ErrorValue Syntax.Expression
+parse _ = Error "Not Implemented"
+
+applyParse :: Result ErrorValue ParseStack -> Char -> Result ErrorValue ParseStack
+applyParse stack c = stack >>= (\x -> stack >>= x c) . parser . head
 
 
 --
@@ -90,9 +112,8 @@ parseQuantifier :: Parser
 parseQuantifier _ [] = Error "Parsing a Quantifier Requires a Parse Frame"
 parseQuantifier c (x:xs)
     | isSingleQuantifier c = parseSingleQuantifier c >>= finishQuantifierParse [c]
-    | isEndOfRangedQuantifier c = let rValue = reverse $ accumulator x in
-        parseRangedQuantifier rValue >>= finishQuantifierParse rValue
-    | otherwise = Value $ (x { accumulator = c : accumulator x }) : xs where
+    | isEndOfRangedQuantifier c = (parseRangedQuantifier . reverseAcc) x >>= (finishQuantifierParse . reverseAcc . appendChar c) x
+    | otherwise = Value $ appendChar c x : xs where
 
     quantifierChars :: [Char]
     quantifierChars = ['?', '*', '+']
@@ -102,6 +123,12 @@ parseQuantifier c (x:xs)
 
     isEndOfRangedQuantifier :: Char -> Bool
     isEndOfRangedQuantifier = (==) '}'
+
+    appendChar :: Char -> ParseFrame -> ParseFrame
+    appendChar ch pf = pf { accumulator = ch : accumulator pf }
+
+    reverseAcc :: ParseFrame -> String
+    reverseAcc pf = reverse $ accumulator pf
 
     finishQuantifierParse :: String -> Syntax.Quantifier -> Result ErrorValue ParseStack
     finishQuantifierParse str = popParseFrame . (:xs) . updateParseFrame x str . Quantifier
