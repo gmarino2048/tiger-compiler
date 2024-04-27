@@ -160,6 +160,9 @@ mod tests {
         let result = Quantifier::parse("{x}").unwrap_err();
         assert_eq!(result.kind(), &ErrorKind::InvalidSyntax);
 
+        let result = Quantifier::parse("{,}").unwrap_err();
+        assert_eq!(result.kind(), &ErrorKind::InvalidQuantifier);
+
         let result = Quantifier::parse("{13, y}").unwrap_err();
         assert_eq!(result.kind(), &ErrorKind::InvalidSyntax);
 
