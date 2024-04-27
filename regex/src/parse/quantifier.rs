@@ -1,37 +1,7 @@
+use super::*;
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum ErrorKind {
-    InvalidSyntax,
-    InvalidQuantifier
-}
-
-#[derive(Debug)]
-pub struct Error {
-    kind: ErrorKind,
-    message: String
-}
-
-impl Error {
-    pub fn new(code: ErrorKind, message: &str) -> Self {
-        Error {
-            kind: code,
-            message: String::from(message)
-        }
-    }
-
-    pub fn kind(&self) -> &ErrorKind {
-        &self.kind
-    }
-
-    pub fn message(&self) -> &String {
-        &self.message
-    }
-}
-
-pub type ParseResult<T> = Result<T, Error>;
-
-#[derive(Debug, PartialEq, Eq)]
-enum Quantifier {
+pub enum Quantifier {
     Single,
     AtLeast(usize),
     AtMost(usize),
@@ -111,7 +81,7 @@ impl Quantifier {
 }
 
 #[cfg(test)]
-mod quantifier_tests {
+mod tests {
     use crate::parse::ErrorKind;
 
     use super::Quantifier;
@@ -201,4 +171,3 @@ mod quantifier_tests {
     }
 
 }
-
