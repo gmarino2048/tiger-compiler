@@ -147,6 +147,15 @@ mod quantifier_tests {
     fn test_ranged() {
         let result = Quantifier::parse("{13,43}").unwrap();
         assert_eq!(result, Quantifier::Range(13, 43));
+
+        let result = Quantifier::parse("{43,13}").unwrap();
+        assert_eq!(result, Quantifier::Range(43, 13));
+
+        let result = Quantifier::parse("{14, 80}").unwrap();
+        assert_eq!(result, Quantifier::Range(14, 80));
+
+        let result = Quantifier::parse("{30,30}").unwrap();
+        assert_eq!(result, Quantifier::Range(30, 30));
     }
 
     #[test]
@@ -168,6 +177,27 @@ mod quantifier_tests {
 
         let result = Quantifier::parse("{, 13 }").unwrap();
         assert_eq!(result, Quantifier::AtMost(13));
+
+        let result = Quantifier::parse("{, 80 }").unwrap();
+        assert_eq!(result, Quantifier::AtMost(80));
+    }
+
+    #[test]
+    fn test_ranged_error_cases() {
+        let result = Quantifier::parse("{}").unwrap_err();
+        assert_eq!(result.kind(), &ErrorKind::InvalidQuantifier);
+
+        let result = Quantifier::parse("{x}").unwrap_err();
+        assert_eq!(result.kind(), &ErrorKind::InvalidSyntax);
+
+        let result = Quantifier::parse("{13, y}").unwrap_err();
+        assert_eq!(result.kind(), &ErrorKind::InvalidSyntax);
+
+        let result = Quantifier::parse("{1, 2, 3}").unwrap_err();
+        assert_eq!(result.kind(), &ErrorKind::InvalidQuantifier);
+
+        let result = Quantifier::parse("a{}").unwrap_err();
+        assert_eq!(result.kind(), &ErrorKind::InvalidSyntax);
     }
 
 }
