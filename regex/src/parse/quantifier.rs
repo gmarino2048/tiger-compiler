@@ -40,7 +40,7 @@ impl Quantifier {
             Self::create_ranged_quantifier(range_elements[0], range_elements[1])
         }
         else if range_elements.len() == 1 {
-            Self::create_ranged_quantifier(None, range_elements[0])
+            Self::create_ranged_quantifier(range_elements[0], None)
         }
         else {
             let range_field_count = range_elements.len();
