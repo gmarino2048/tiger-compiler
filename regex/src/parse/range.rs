@@ -111,7 +111,7 @@ impl RangeParseInfo {
         }
     }
 
-    fn parse_character(mut self, current_character: char) -> ParseResult<Self> {
+    fn parse_character(self, current_character: char) -> ParseResult<Self> {
         if self.range_context {
             self.process_ranged_match(current_character)
         }
