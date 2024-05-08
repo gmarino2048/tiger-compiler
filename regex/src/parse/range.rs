@@ -30,7 +30,7 @@ impl Range {
 
         input
             .chars()
-            .try_fold(RangeParseInfo::default(), RangeParseInfo::parse_iterable)?
+            .try_fold(RangeParseInfo::default(), Self::parse_iterable)?
             .finish_parse()
     }
 
@@ -46,6 +46,15 @@ impl Range {
         }
 
         String::from(&input[start_idx..end_idx])
+    }
+
+    fn parse_iterable(info: RangeParseInfo, current_character: char) -> ParseResult<RangeParseInfo> {
+        if info.strict_literal {
+            info.parse_literal_context(current_character)
+        }
+        else {
+            info.parse_standard_context(current_character)
+        }
     }
 }
 
@@ -67,16 +76,8 @@ impl RangeParseInfo {
     const CHARACTER_RANGE: char = '-';
     const CHARACTER_TAB: char = 't';
 
-    fn parse_iterable(info: Self, current_character: char) -> ParseResult<Self> {
-        if info.strict_literal {
-            Self::parse_literal_context(current_character, info)
-        }
-        else {
-            Self::parse_standard_context(current_character, info)
-        }
-    }
 
-    fn parse_literal_context(current_character: char, mut info: Self) -> ParseResult<Self> {
+    fn parse_literal_context(mut self, current_character: char) -> ParseResult<Self> {
         let parsed_character: char;
 
         match current_character {
@@ -86,19 +87,19 @@ impl RangeParseInfo {
             _ => parsed_character = current_character
         }
 
-        info.strict_literal = false;
-        Self::parse_character(parsed_character, info)
+        self.strict_literal = false;
+        self.parse_character(parsed_character)
     }
 
-    fn parse_standard_context(current_character: char, mut info: Self) -> ParseResult<Self> {
+    fn parse_standard_context(mut self, current_character: char) -> ParseResult<Self> {
         match current_character {
             Self::CHARACTER_ESCAPE => {
-                info.strict_literal = true;
-                Ok(info)
+                self.strict_literal = true;
+                Ok(self)
             },
             Self::CHARACTER_RANGE => {
-                info.range_context = true;
-                Ok(info)
+                self.range_context = true;
+                Ok(self)
             },
             Self::CHARACTER_OPEN => {
                 Err(Error::new(ErrorKind::InvalidSyntax, "Reached beginning of new match range while parsing"))
@@ -106,25 +107,25 @@ impl RangeParseInfo {
             Self::CHARACTER_CLOSE => {
                 Err(Error::new(ErrorKind::InvalidSyntax, "Reached end of match range while parsing"))
             }
-            _ => Self::parse_character(current_character, info)
+            _ => self.parse_character(current_character)
         }
     }
 
-    fn parse_character(current_character: char, info: Self) -> ParseResult<Self> {
-        if info.range_context {
-            Self::process_ranged_match(current_character, info)
+    fn parse_character(mut self, current_character: char) -> ParseResult<Self> {
+        if self.range_context {
+            self.process_ranged_match(current_character)
         }
         else {
-            Self::add_single_to_group(current_character, info)
+            self.add_single_to_group(current_character)
         }
     }
 
-    fn process_ranged_match(current_character: char, mut info: Self) -> ParseResult<Self> {
-        match info.previous_character {
+    fn process_ranged_match(mut self, current_character: char) -> ParseResult<Self> {
+        match self.previous_character {
             Some(last_character) => {
-                info.range_context = false;
-                info.previous_character = None;
-                Self::check_range_and_add(last_character, current_character, info)
+                self.range_context = false;
+                self.previous_character = None;
+                self.check_range_and_add(last_character, current_character)
             }
             None => {
                 let errmsg = format!("Malformed range statement: could not complete range ending in '{current_character}'.");
@@ -133,30 +134,30 @@ impl RangeParseInfo {
         }
     }
 
-    fn add_single_to_group(current_character: char, mut info: Self) -> ParseResult<Self> {
-        if let Some(last_character) = info.previous_character {
-            info.current_range.add_single(last_character);
+    fn add_single_to_group(mut self, current_character: char) -> ParseResult<Self> {
+        if let Some(last_character) = self.previous_character {
+            self.current_range.add_single(last_character);
         }
 
-        info.previous_character = Some(current_character);
-        Ok(info)
+        self.previous_character = Some(current_character);
+        Ok(self)
     }
 
-    fn check_range_and_add(start: char, end: char, mut info: Self) -> ParseResult<Self> {
+    fn check_range_and_add(mut self, start: char, end: char) -> ParseResult<Self> {
         if start > end {
             let errmsg = format!("Could not form match range: '{start}' is preceeded by '{end}'");
             Err(Error::new(ErrorKind::InvalidMatchRange, &errmsg))
         }
         else {
-            info.current_range.add_range(start, end);
-            Ok(info)
+            self.current_range.add_range(start, end);
+            Ok(self)
         }
     }
 
     fn finish_parse(self) -> ParseResult<Range> {
         match self.previous_character {
             Some(remaining_character) => {
-                Self::add_single_to_group(remaining_character, self)
+                self.add_single_to_group(remaining_character)
                     .map(|rpi| rpi.current_range)
             }
             None => Ok(self.current_range)
