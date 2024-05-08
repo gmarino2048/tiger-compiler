@@ -154,7 +154,13 @@ impl RangeParseInfo {
     }
 
     fn finish_parse(self) -> ParseResult<Range> {
-        Ok(self.current_range)
+        match self.previous_character {
+            Some(remaining_character) => {
+                Self::add_single_to_group(remaining_character, self)
+                    .map(|rpi| rpi.current_range)
+            }
+            None => Ok(self.current_range)
+        }
     }
 }
 
