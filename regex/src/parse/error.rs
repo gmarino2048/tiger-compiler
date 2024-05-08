@@ -2,7 +2,8 @@
 #[derive(Debug, PartialEq, Eq)]
 pub enum ErrorKind {
     InvalidSyntax,
-    InvalidQuantifier
+    InvalidQuantifier,
+    InvalidMatchRange
 }
 
 #[derive(Debug)]

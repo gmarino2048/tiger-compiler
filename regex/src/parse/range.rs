@@ -59,6 +59,7 @@ struct RangeParseInfo {
 
 impl RangeParseInfo {
 
+    const CHARACTER_CARRIAGE_RETURN: char = 'r';
     const CHARACTER_CLOSE: char = ']';
     const CHARACTER_ESCAPE: char = '\\';
     const CHARACTER_NEWLINE: char = 'n';
@@ -79,7 +80,9 @@ impl RangeParseInfo {
         let parsed_character: char;
 
         match current_character {
-            // TODO: Fill this in
+            Self::CHARACTER_CARRIAGE_RETURN => parsed_character = '\r',
+            Self::CHARACTER_NEWLINE => parsed_character = '\n',
+            Self::CHARACTER_TAB => parsed_character = '\t',
             _ => parsed_character = current_character
         }
 
@@ -97,6 +100,9 @@ impl RangeParseInfo {
                 info.range_context = true;
                 Ok(info)
             },
+            Self::CHARACTER_OPEN => {
+                Err(Error::new(ErrorKind::InvalidSyntax, "Reached beginning of new match range while parsing"))
+            },
             Self::CHARACTER_CLOSE => {
                 Err(Error::new(ErrorKind::InvalidSyntax, "Reached end of match range while parsing"))
             }
@@ -104,26 +110,51 @@ impl RangeParseInfo {
         }
     }
 
-    fn parse_character(current_character: char, mut info: Self) -> ParseResult<Self> {
+    fn parse_character(current_character: char, info: Self) -> ParseResult<Self> {
         if info.range_context {
-            info.range_context = false;
-            Self::add_range_to_group(current_character, info)
+            Self::process_ranged_match(current_character, info)
         }
         else {
             Self::add_single_to_group(current_character, info)
         }
     }
 
-    fn add_range_to_group(current_character: char, mut info: Self) -> ParseResult<Self> {
-        todo!()
+    fn process_ranged_match(current_character: char, mut info: Self) -> ParseResult<Self> {
+        match info.previous_character {
+            Some(last_character) => {
+                info.range_context = false;
+                info.previous_character = None;
+                Self::check_range_and_add(last_character, current_character, info)
+            }
+            None => {
+                let errmsg = format!("Malformed range statement: could not complete range ending in '{current_character}'.");
+                Err(Error::new(ErrorKind::InvalidSyntax, &errmsg))
+            }
+        }
     }
 
     fn add_single_to_group(current_character: char, mut info: Self) -> ParseResult<Self> {
-        todo!()
+        if let Some(last_character) = info.previous_character {
+            info.current_range.add_single(last_character);
+        }
+
+        info.previous_character = Some(current_character);
+        Ok(info)
+    }
+
+    fn check_range_and_add(start: char, end: char, mut info: Self) -> ParseResult<Self> {
+        if start > end {
+            let errmsg = format!("Could not form match range: '{start}' is preceeded by '{end}'");
+            Err(Error::new(ErrorKind::InvalidMatchRange, &errmsg))
+        }
+        else {
+            info.current_range.add_range(start, end);
+            Ok(info)
+        }
     }
 
     fn finish_parse(self) -> ParseResult<Range> {
-        todo!()
+        Ok(self.current_range)
     }
 }
 
